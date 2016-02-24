@@ -1,26 +1,28 @@
+enum BallDirection {
+  right,
+  left
+};
+
+// pin definitions
 int ledPins[] = {11,10,9,8,7,6,5};
-volatile uint8_t ledStatus;
 int leftButton = 3;
 int rightButton = 2;
 
+volatile uint8_t ledStatus; // tracks (bitwise) which LEDs should be lit
 volatile int leftEndPoint = -1; //keeps track of how far left we should move the ball
 volatile int rightEndPoint = 7; //how far right
 const int midPoint = 3;
-int currentIndex;
+
+int currentIndex; // where the ball is currently
 int ledPinsLength = 7;
-int ballSpeed = 250;
+int ballSpeed = 250; // delay in ms (changed by potentiometer)
 
 //Debounce
 volatile long leftLastTime = 0;
 volatile long rightLastTime = 0;
 const long debounceThreshold = ballSpeed + 50;
 
-enum BallDirection {
-  right,
-  left
-};
-
-BallDirection ballDir;
+BallDirection ballDir; // tracks which direction the "ball" (light) is moving currently
 
 void setup() {
   Serial.begin(9600);
@@ -34,20 +36,27 @@ void setup() {
   pinMode(leftButton, INPUT);
   pinMode(rightButton, INPUT);
 
+  // button interrupt definitions
   attachInterrupt(digitalPinToInterrupt(leftButton), leftPressed, RISING);
   attachInterrupt(digitalPinToInterrupt(rightButton), rightPressed, RISING);
 
-  currentIndex = ledPinsLength / 2;
-  ledStatus = 0x01 << (currentIndex);
+  currentIndex = ledPinsLength / 2; // start in the middle
+  ledStatus = 0x01 << (currentIndex); // set the middle LED to on
   updateLeds();
 
-  // determine starting direction
-  if (rand() < 0.5) {
+  // if analog input pin 0 is unconnected, random analog
+  // noise will cause the call to randomSeed() to generate
+  // different seed numbers each time the sketch runs.
+  // randomSeed() will then shuffle the random function.
+  randomSeed(analogRead(0));
+  
+  // determine starting direction randomly
+  if (random(0, 100) < 50) {
     ballDir = left;
   } else {
     ballDir = right;
   }
-  delay(200);
+  delay(1500); // for dramatic tension
 }
 
 void loop() {
@@ -61,13 +70,18 @@ void loop() {
     
   } else {
 
-    BallDirection currentDir = ballDir;
+    BallDirection currentDir = ballDir; // to reference against for detecting direction change
+    ballSpeed = getSpeedFromKnob();
     moveBall(); //This will update currentIndex
     updateLeds();
     if (currentDir == ballDir) {
       delay(ballSpeed); //only delay if we haven't just changed direction
     }
   }
+}
+
+int getSpeedFromKnob() {
+  return (int) map(analogRead(A1), 0, 1024, 500, 15);
 }
 
 void moveBall() {
@@ -93,7 +107,6 @@ void moveBall() {
 }
 
 void updateLeds() {
-  Serial.println(ledStatus);
   // clear all LEDs first
   for (int i = 0; i < ledPinsLength; i++) {
     digitalWrite(ledPins[i], LOW);
@@ -141,6 +154,7 @@ void leftWinSequence() {
 
 // ISR for left Button
 void leftPressed() {
+  // debounce logic
   long currentTime = millis();
   if (currentTime - leftLastTime < debounceThreshold) {
     return;
@@ -149,6 +163,7 @@ void leftPressed() {
   }
   
   if ((currentIndex > ledPinsLength / 2) || ballDir == right) {
+    // only allow capture attempt when ball is on your side and moving towards your end point
     return;
   } else {
     if ((currentIndex - 1) == leftEndPoint) {
@@ -163,6 +178,7 @@ void leftPressed() {
 
 // ISR for right Button
 void rightPressed() {
+  // debounce logic
   long currentTime = millis();
   if (currentTime - rightLastTime < debounceThreshold) {
     return;
@@ -170,7 +186,8 @@ void rightPressed() {
     rightLastTime = currentTime;
   }
   
-  if (currentIndex < ledPinsLength / 2) {
+  if ((currentIndex < ledPinsLength / 2) || ballDir == left) {
+    // only allow capture attempt when ball is on your side and moving towards your end point
     return;
   } else {
     if ((currentIndex + 1) == rightEndPoint) {
