@@ -24,6 +24,8 @@ const long debounceThreshold = ballSpeed + 50;
 
 BallDirection ballDir; // tracks which direction the "ball" (light) is moving currently
 
+void(* resetFunc) (void) = 0; //declare reset function @ address 0
+
 void setup() {
   Serial.begin(9600);
   
@@ -134,6 +136,8 @@ void rightWinSequence() {
       delay(200);
       
   }
+
+  resetFunc();
 }
 
 void leftWinSequence() {
@@ -150,6 +154,8 @@ void leftWinSequence() {
       delay(200);
       
   }
+  
+  resetFunc();
 }
 
 // ISR for left Button
